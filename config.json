@@ -1,75 +1,22 @@
 {
   "port": 3000,
-  "lab12": {
-    "trm200": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
-    },
-    "trm202_1": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
-    },
-    "trm202_2": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
-    }
-  },
-  "lab17": {
-    "trm200": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
-    },
+  "lab13_1": {
     "trm202": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
+      "host": "10.2.147.7",
+      "port": 502,
+      "slave_id": 10
     }
   },
-   "lab13": {
-    "trm202": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
-    }
-  },
-  "lab14": {
+  "lab13_2": {
     "trm210": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
+      "host": "10.2.147.7",
+      "port": 502,
+      "slave_id": 8
     },
     "trm200": {
-      "port": "COM5",
-      "baudrate": 115200,
-      "parity": "N",
-      "stopbits": 2,
-      "timeout": 0.2,
-      "slave_id": 1
+      "host": "10.2.147.7",
+      "port": 502,
+      "slave_id": 10
     }
   }
 }

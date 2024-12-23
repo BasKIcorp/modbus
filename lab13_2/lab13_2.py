@@ -26,7 +26,7 @@ def create_logger(logger_name, log_file):
     return logger
 
 
-lab12_logger = create_logger("lab12_logger", "modbusRESTAPI/lab13_2/lab13_2.log")
+lab12_logger = create_logger("lab13_2_logger", "modbusRESTAPI/lab13_2/lab13_2.log")
 
 
 def log_error(code, message):
@@ -65,7 +65,7 @@ class Lab13_2API(Resource):
         await client.connect()
 
         try:
-            data = client.read_holding_registers(address=start_address, count=count, slave=slave_id)
+            data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
             if not data.isError():
                 value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
                 lab12_logger.info(f"Лаб13_2, прибор {device}, функция {function}, прочитано значение {value_float32}")
@@ -127,7 +127,7 @@ class Lab13_2API(Resource):
             try:
                 data = await client.write_register(address=start_address, value=value, slave=slave_id)
                 if not data.isError():
-                    lab12_logger.info(f"Лаб12, прибор {device}, функция {function}, значение {value} записано")
+                    lab12_logger.info(f"Лаб13_2, прибор {device}, функция {function}, значение {value} записано")
                     return {'Значение записано': True}
                 else:
                     log_error(502, "Ошибка: {}".format(data))

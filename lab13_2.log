@@ -1,3 +1,0 @@
-2024-12-23 13:47:18,965 ERROR: Ошибка 500: Unexpected error: unsupported operand type(s) for //: 'NoneType' and 'int'
-2024-12-23 13:47:32,932 ERROR: Ошибка 502: Нет соединения с устройством
-2024-12-23 13:47:32,933 ERROR: Ошибка 500: Unexpected error: 502 Bad Gateway: The proxy server received an invalid response from an upstream server.

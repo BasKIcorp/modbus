@@ -1,5 +1,7 @@
 {
   "port": 3000,
+  "poll_time_minutes": 1,
+  "poll_time_seconds": 0,
   "lab13_1": {
     "trm202": {
       "host": "10.2.147.7",

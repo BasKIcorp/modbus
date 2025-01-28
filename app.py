@@ -2,14 +2,14 @@ import json
 
 from flask import Flask
 
-from lab13_1.lab13_1 import lab_13_1
-from lab13_2.lab13_2 import lab_13_2
-from poll_temps import poll_temps
+from lab13.lab13 import lab_13
+from lab14.lab14 import lab_14
+from poll_params import poll_params
 
 app = Flask(__name__)
-app.register_blueprint(lab_13_1)
-app.register_blueprint(lab_13_2)
-app.register_blueprint(poll_temps)
+app.register_blueprint(lab_13)
+app.register_blueprint(lab_14)
+app.register_blueprint(poll_params)
 with open('modbusRESTAPI/config.json') as f:
     d = json.load(f)
 

@@ -2,23 +2,26 @@
   "port": 3000,
   "poll_time_minutes": 1,
   "poll_time_seconds": 0,
-  "lab13_1": {
+  "delete_logs_days": 1,
+  "server_host": "10.2.147.7",
+  "server_port": 502,
+  "lab13": {
     "trm202": {
-      "host": "10.2.147.7",
-      "port": 502,
-      "slave_id": 10
+      "slave_id": 10,
+      "first_register": 4105,
+      "second_register": 4107
     }
   },
-  "lab13_2": {
+  "lab14": {
     "trm210": {
-      "host": "10.2.147.7",
-      "port": 502,
-      "slave_id": 8
+      "slave_id": 8,
+      "first_register": 4105,
+      "second_register": 4107
     },
     "trm200": {
-      "host": "10.2.147.7",
-      "port": 502,
-      "slave_id": 10
+      "slave_id": 10,
+      "first_register": 4105,
+      "second_register": 4107
     }
   }
 }

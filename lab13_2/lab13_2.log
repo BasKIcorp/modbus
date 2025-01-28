@@ -1,3 +1,0 @@
-2024-12-20 22:50:18,144 ERROR: Ошибка 500: Unexpected error: 'coroutine' object has no attribute 'isError'
-2024-12-20 22:55:03,744 ERROR: Ошибка 404: Нет функции get_temp1
-2024-12-20 22:55:03,744 ERROR: Ошибка 500: Unexpected error: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.

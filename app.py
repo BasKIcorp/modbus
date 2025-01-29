@@ -5,6 +5,8 @@ from flask import Flask
 from lab13.lab13 import lab_13
 from lab14.lab14 import lab_14
 from poll_params import poll_params
+# Импортируем планировщик
+import scheduler
 
 app = Flask(__name__)
 app.register_blueprint(lab_13)

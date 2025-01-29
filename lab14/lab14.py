@@ -3,8 +3,6 @@ import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-
-from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Blueprint
 from flask_restful import Api, Resource, reqparse, marshal, fields, abort
 from pymodbus.client import AsyncModbusTcpClient
@@ -55,10 +53,6 @@ class Lab14API(Resource):
         slave_id = d[lab_num][device]["slave_id"]
         host = d["server_host"]
         port = d["server_port"]
-        client = AsyncModbusTcpClient(  # создание модбас tcp клиента
-            host,
-            port=port
-        )
         start_address = None
         count = 2
         if (device == "trm200" and function == "get_temp_1") or \
@@ -68,33 +62,48 @@ class Lab14API(Resource):
             start_address = 4107
         else:
             log_error(404, message="Нет функции {}".format(function))
-        await client.connect()
 
-        try:
-            data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
-            if not data.isError():
-                value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)    # переводим в читаемый вид
-                lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
-                result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
-                reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
-                return {'Полученные значения': [marshal(reg, reg_fields) for reg in result]}    # отправляем на сервис ответ
-            else:
-                log_error(502, "Ошибка: {}".format(data))
-        except ConnectionException:
-            log_error(502, "Нет соединения с устройством")
-        except ModbusIOException:
-            log_error(502, "Нет ответа от устройства")
-        except ParameterException:
-            log_error(502, "Неверные параметры соединения")
-        except NoSuchSlaveException:
-            log_error(502, "Нет устройства с id {}".format(slave_id))
-        except NotImplementedException:
-            log_error(502, "Нет данной функции")
-        except InvalidMessageReceivedException:
-            log_error(502, "Неверная контрольная сумма в ответе")
-        except MessageRegisterException:
-            log_error(502, "Неверный адрес регистра")
-        client.close()
+        # Количество попыток и задержка между ними
+        max_retries = d["max_retries"]
+        retry_delay = d["delay_seconds"]  # в секундах
+
+        for attempt in range(max_retries):
+            try:
+                client = AsyncModbusTcpClient(host, port=port)
+                await client.connect()
+                try:
+                    data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
+                    if not data.isError():
+                        value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)    # переводим в читаемый вид
+                        lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
+                        result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
+                        reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
+                        return {'Полученные значения': [marshal(reg, reg_fields) for reg in result]}    # отправляем на сервис ответ
+                    else:
+                        log_error(502, "Ошибка: {}".format(data))
+                except ConnectionException:
+                    log_error(502, "Нет соединения с устройством")
+                except ModbusIOException:
+                    log_error(502, "Нет ответа от устройства")
+                except ParameterException:
+                    log_error(502, "Неверные параметры соединения")
+                except NoSuchSlaveException:
+                    log_error(502, "Нет устройства с id {}".format(slave_id))
+                except NotImplementedException:
+                    log_error(502, "Нет данной функции")
+                except InvalidMessageReceivedException:
+                    log_error(502, "Неверная контрольная сумма в ответе")
+                except MessageRegisterException:
+                    log_error(502, "Неверный адрес регистра")
+                client.close()
+            except ConnectionException:
+                log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+            except Exception as e:
+                log_error(502, f"Ошибка Modbus: {str(e)}")
+                break
+        log_error(500, "Не удалось получить данные после всех попыток")
 
     def post(self, device, function):
         if device == "trm210":  # запись только для устройства trm210
@@ -122,36 +131,44 @@ class Lab14API(Resource):
             else:
                 log_error(404, message="Нет функции {}".format(function))
 
-            client = AsyncModbusTcpClient(  # создание tcp модбас клиента
-                host,
-                port=port
-            )
+            # Количество попыток и задержка между ними
+            max_retries = d["max_retries"]
+            retry_delay = d["delay_seconds"]  # в секундах
 
-            await client.connect()
-
-            try:
-                data = await client.write_register(address=start_address, value=value, slave=slave_id)  # запись данных
-                if not data.isError():
-                    lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, значение {value} записано")
-                    return {'Значение записано': True}
-                else:
-                    log_error(502, "Ошибка: {}".format(data))
-            except ConnectionException:
-                log_error(502, "Нет соединения с устройством")
-            except ModbusIOException:
-                log_error(502, "Нет ответа от устройства")
-            except ParameterException:
-                log_error(502, "Неверные параметры соединения")
-            except NoSuchSlaveException:
-                log_error(502, "Нет устройства с id {}".format(slave_id))
-            except NotImplementedException:
-                log_error(502, "Нет данной функции")
-            except InvalidMessageReceivedException:
-                log_error(502, "Неверная контрольная сумма в ответе")
-            except MessageRegisterException:
-                log_error(502, "Неверный адрес регистра")
-            client.close()
-
+            for attempt in range(max_retries):
+                try:
+                    client = AsyncModbusTcpClient(host, port=port)
+                    await client.connect()
+                    try:
+                        data = await client.write_register(address=start_address, value=value, slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, значение {value} записано")
+                            return {'Значение записано': True}
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                    except ConnectionException:
+                        log_error(502, "Нет соединения с устройством")
+                    except ModbusIOException:
+                        log_error(502, "Нет ответа от устройства")
+                    except ParameterException:
+                        log_error(502, "Неверные параметры соединения")
+                    except NoSuchSlaveException:
+                        log_error(502, "Нет устройства с id {}".format(slave_id))
+                    except NotImplementedException:
+                        log_error(502, "Нет данной функции")
+                    except InvalidMessageReceivedException:
+                        log_error(502, "Неверная контрольная сумма в ответе")
+                    except MessageRegisterException:
+                        log_error(502, "Неверный адрес регистра")
+                    client.close()
+                except ConnectionException:
+                    log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                except Exception as e:
+                    log_error(502, f"Ошибка Modbus: {str(e)}")
+                    break
+            log_error(500, "Не удалось получить данные после всех попыток")
         else:
             log_error(404, message="Нет устройства {} в {}".format(device, lab_num))
 
@@ -160,15 +177,10 @@ api.add_resource(Lab14API, '/lab14/<string:device>/<string:function>')
 
 
 # Функция удаления логов по прошествии n дней
-def delete_logs(log_file):
+def delete_logs():
+    log_file = "modbusRESTAPI/lab14/lab14.log"
     log_dir = os.path.dirname(log_file)
     for file in os.listdir(log_dir):
         file_path = os.path.join(log_dir, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
-
-
-# Планировщик удаления логов
-scheduler = BackgroundScheduler()
-scheduler.add_job(delete_logs, 'interval', days=d["delete_logs_days"], args=["modbusRESTAPI/lab14/lab14.log"])
-scheduler.start()

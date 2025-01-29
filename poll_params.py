@@ -4,7 +4,6 @@ import sqlite3
 import logging
 from logging.handlers import RotatingFileHandler
 import asyncio
-
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Blueprint
 from pymodbus.client import AsyncModbusTcpClient
@@ -73,6 +72,7 @@ def save_to_db(param_name, value):
 # Хранение информации о данных для считывания
 params_to_read = {"trm202": ["lab13", ["DP", d["lab13"]["trm202"]["first_register"]],
                              ["T", d["lab13"]["trm202"]["second_register"]]],
+                  "sensor": ["lab13", ["P", d["lab13"]["sensor"]["first_register"]]],
                   "trm200": ["lab14", ["T1", d["lab14"]["trm200"]["first_register"]],
                              ["T2", d["lab14"]["trm200"]["second_register"]]],
                   "trm210": ["lab14", ["DPy", d["lab14"]["trm210"]["first_register"]],
@@ -92,44 +92,67 @@ async def _read_params():
         for i in range(1, len(params_to_read.get(device))):
             start_address.append(params_to_read.get(device)[i][1])  # получаем адреса регистров, записанные в словаре
         start_addresses.append(start_address)
-    count = 2
     answer = []
-    client = AsyncModbusTcpClient(host, port=port)
-    await client.connect()
-    print(start_addresses)
-    for i in range(len(devices)):
-        for j in range(len(start_addresses[i])):  # получаем номер регистра
-            start_address = start_addresses[i][j]
-            device = devices[i]
-            slave_id = slave_ids[i]
-            try:
-                data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
-                if not data.isError():
-                    value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
-                    param_name = params_to_read.get(device)[j + 1][0]
-                    poll_logger.info(
-                        f"Получение параметров, прибор {device}, параметр {param_name}"
-                        f"регистр {start_address}, прочитано значение {value_float32}")
-                    temp_data = (param_name, value_float32)  # собираем полученные данные в один кортеж
-                    answer.append(temp_data)
-                else:
-                    log_error(502, "Ошибка: {}".format(data))
-            except ConnectionException:
-                log_error(502, "Нет соединения с устройством")
-            except ModbusIOException:
-                log_error(502, "Нет ответа от устройства")
-            except ParameterException:
-                log_error(502, "Неверные параметры соединения")
-            except NoSuchSlaveException:
-                log_error(502, "Нет устройства с id {}".format(slave_id))
-            except NotImplementedException:
-                log_error(502, "Нет данной функции")
-            except InvalidMessageReceivedException:
-                log_error(502, "Неверная контрольная сумма в ответе")
-            except MessageRegisterException:
-                log_error(502, "Неверный адрес регистра")
-    client.close()
-    return answer
+    # Количество попыток и задержка между ними
+    max_retries = d["max_retries"]
+    retry_delay = d["delay_seconds"]  # в секундах
+
+    for attempt in range(max_retries):
+        try:
+            client = AsyncModbusTcpClient(host, port=port)
+            await client.connect()
+            for i in range(len(devices)):
+                for j in range(len(start_addresses[i])):  # получаем номер регистра
+                    start_address = start_addresses[i][j]
+                    device = devices[i]
+                    slave_id = slave_ids[i]
+                    if device == "sensor":
+                        count = 1
+                    else:
+                        count = 2
+                    try:
+                        if device == "sensor":
+                            data = await client.read_input_registers(address=start_address, count=count, slave=slave_id)
+                        else:
+                            data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
+                        if not data.isError():
+                            if device == "sensor":
+                                value = data.registers[0]
+                            else:
+                                value = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
+                            param_name = params_to_read.get(device)[j + 1][0]
+                            poll_logger.info(
+                                f"Получение параметров, прибор {device}, параметр {param_name}, "
+                                f"регистр {start_address}, прочитано значение {value}")
+                            temp_data = (param_name, value)  # собираем полученные данные в один кортеж
+                            answer.append(temp_data)
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                    except ConnectionException:
+                        log_error(502, "Нет соединения с устройством")
+                    except ModbusIOException:
+                        log_error(502, "Нет ответа от устройства")
+                    except ParameterException:
+                        log_error(502, "Неверные параметры соединения")
+                    except NoSuchSlaveException:
+                        log_error(502, "Нет устройства с id {}".format(slave_id))
+                    except NotImplementedException:
+                        log_error(502, "Нет данной функции")
+                    except InvalidMessageReceivedException:
+                        log_error(502, "Неверная контрольная сумма в ответе")
+                    except MessageRegisterException:
+                        log_error(502, "Неверный адрес регистра")
+            client.close()
+            return answer
+        except ConnectionException:
+            log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+        except Exception as e:
+            log_error(502, f"Ошибка Modbus: {str(e)}")
+            break
+    log_error(500, "Не удалось получить данные после всех попыток")
+    return None
 
 
 # Функция запуска по таймеру
@@ -140,22 +163,17 @@ async def scheduled_task():
             print(data)
             for answer in data:
                 save_to_db(answer[0], answer[1])
+    except asyncio.CancelledError:
+        log_error(500, "Ошибка чтения данных. Проверьте подключение")
     except Exception as e:
-        log_error(500, f"Unexpected error: {str(e)}")
+        log_error(500, f"Ошибка: {str(e)}")
 
 
-# Функция удаления логов по просшествии n дней
-def delete_logs(log_file):
+# Функция удаления логов по прошествии n дней
+def delete_logs():
+    log_file = "modbusRESTAPI/poll_params.log"
     log_dir = os.path.dirname(log_file)
     for file in os.listdir(log_dir):
         file_path = os.path.join(log_dir, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
-
-
-# Планировщик с двумя задачами: считывание данных и удаление логов
-scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: asyncio.run(scheduled_task()), 'interval', minutes=d["poll_time_minutes"],
-                  seconds=d["poll_time_seconds"])
-scheduler.add_job(delete_logs, 'interval', days=d["delete_logs_days"], args=["modbusRESTAPI/poll_params.log"])
-scheduler.start()

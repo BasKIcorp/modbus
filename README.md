@@ -25,11 +25,24 @@
 - Чтение температуры воздуха внутри емкости газового термометра - GET /lab14/trm200/get_temp_2
 
 ## Инструкция по запуску
+### Клонирование репозитория
+```
+git clone https://github.com/BasKIcorp/modbus.git
+cd modbus
+```
+### Создание виртуального окружения
+```
+python3 -m venv venv
+```
+### Активация виртуального окружения
+```
+source venv/bin/activate
+```
 ### Установка необходимых библиотек
 ```
 pip install -r requirements.txt
 ```
 ### Запуск приложения
 ```
-python app.py
+python3 app.py
 ```

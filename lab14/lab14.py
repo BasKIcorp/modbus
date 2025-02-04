@@ -15,7 +15,7 @@ lab_14 = Blueprint('lab14', __name__)
 api = Api(lab_14)
 
 # Подгружаем настройки из файла
-with open('modbusRESTAPI/config.json') as f:
+with open('config.json') as f:
     d = json.load(f)
 
 
@@ -29,7 +29,7 @@ def create_logger(logger_name, log_file):
     return logger
 
 
-lab14_logger = create_logger("lab14_logger", "modbusRESTAPI/lab14/lab14.log")
+lab14_logger = create_logger("lab14_logger", "lab14.log")
 
 
 # В случае ошибки записываем в логгер и отправляем код ошибки
@@ -125,7 +125,7 @@ class Lab14API(Resource):
             host = d["server_host"]
             port = d["server_port"]
             start_address = None
-            if device == "trm210" and function == "set_voltage":    # проверяем наличие функции
+            if device == "trm210" and function == "set_heat":    # проверяем наличие функции
                 start_address = 4105
                 value = value // 100    # преобразовываем в формат, нужный для устройства
             else:
@@ -178,7 +178,7 @@ api.add_resource(Lab14API, '/lab14/<string:device>/<string:function>')
 
 # Функция удаления логов по прошествии n дней
 def delete_logs():
-    log_file = "modbusRESTAPI/lab14/lab14.log"
+    log_file = "lab14.log"
     log_dir = os.path.dirname(log_file)
     for file in os.listdir(log_dir):
         file_path = os.path.join(log_dir, file)

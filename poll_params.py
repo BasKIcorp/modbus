@@ -13,7 +13,7 @@ from pymodbus.exceptions import ConnectionException, ModbusIOException, Paramete
 poll_params = Blueprint('poll_params', __name__)
 
 # Подгружаем настройки из файла
-with open('modbusRESTAPI/config.json') as f:
+with open('config.json') as f:
     d = json.load(f)
 
 
@@ -27,7 +27,7 @@ def create_logger(logger_name, log_file):
     return logger
 
 
-poll_logger = create_logger("poll_params_logger", "modbusRESTAPI/poll_params.log")
+poll_logger = create_logger("poll_params_logger", "poll_params.log")
 
 
 # В случае ошибки записываем в логгер
@@ -36,7 +36,7 @@ def log_error(code, message):
 
 
 # Создание базы данных
-DB_FILE = 'modbusRESTAPI/params.db'
+DB_FILE = 'params.db'
 
 
 # Создание таблицы базы данных
@@ -171,7 +171,7 @@ async def scheduled_task():
 
 # Функция удаления логов по прошествии n дней
 def delete_logs():
-    log_file = "modbusRESTAPI/poll_params.log"
+    log_file = "poll_params.log"
     log_dir = os.path.dirname(log_file)
     for file in os.listdir(log_dir):
         file_path = os.path.join(log_dir, file)

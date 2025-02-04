@@ -4,7 +4,7 @@ import os
 from logging.handlers import RotatingFileHandler
 import asyncio
 from flask import Blueprint
-from flask_restful import Api, Resource, marshal, fields, abort
+from flask_restful import Api, Resource, marshal, fields, abort, reqparse
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException, ParameterException, NoSuchSlaveException, \
     NotImplementedException, InvalidMessageReceivedException, MessageRegisterException
@@ -15,7 +15,7 @@ lab_13 = Blueprint('lab13', __name__)
 api = Api(lab_13)
 
 # Подгружаем настройки из файла
-with open('modbusRESTAPI/config.json') as f:
+with open('config.json') as f:
     d = json.load(f)
 
 
@@ -29,7 +29,7 @@ def create_logger(logger_name, log_file):
     return logger
 
 
-lab13_logger = create_logger("lab13_logger", "modbusRESTAPI/lab13/lab13.log")
+lab13_logger = create_logger("lab13_logger", "lab13.log")
 
 
 def log_error(code, message):
@@ -108,13 +108,83 @@ class Lab13API(Resource):
                 break
         log_error(500, "Не удалось получить данные после всех попыток")
 
+    def post(self, device, function):
+        if device == "trm202":  # запись только для устройства trm202
+            try:
+                data = asyncio.run(self._write_device_data(device, function))
+                return data
+            except Exception as e:
+                log_error(500, f"Unexpected error: {str(e)}")
+        else:
+            log_error(404, "Нет устройства {} в {}".format(device, lab_num))
+
+    async def _write_device_data(self, device, function):
+        parser = reqparse.RequestParser(bundle_errors=True)
+        parser.add_argument("value", type=int, location="args")  # получение значения для записи
+        query = parser.parse_args()
+        if device == "trm202":
+            slave_id = d[lab_num][device]["slave_id"]
+            value = query["value"]
+            host = d["server_host"]
+            port = d["server_port"]
+            start_address = None
+            if device == "trm202" and function == "set_pressure":  # проверяем наличие функции
+                start_address = 4107
+                value = value // 100  # преобразовываем в формат, нужный для устройства
+            elif device == "trm202" and function == "set_valve":
+                start_address = 1
+            else:
+                log_error(404, message="Нет функции {}".format(function))
+
+            # Количество попыток и задержка между ними
+            max_retries = d["max_retries"]
+            retry_delay = d["delay_seconds"]  # в секундах
+
+            for attempt in range(max_retries):
+                try:
+                    client = AsyncModbusTcpClient(host, port=port)
+                    await client.connect()
+                    try:
+                        data = await client.write_register(address=start_address, value=value,
+                                                           slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
+                            return {'Значение записано': True}
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                    except ConnectionException:
+                        log_error(502, "Нет соединения с устройством")
+                    except ModbusIOException:
+                        log_error(502, "Нет ответа от устройства")
+                    except ParameterException:
+                        log_error(502, "Неверные параметры соединения")
+                    except NoSuchSlaveException:
+                        log_error(502, "Нет устройства с id {}".format(slave_id))
+                    except NotImplementedException:
+                        log_error(502, "Нет данной функции")
+                    except InvalidMessageReceivedException:
+                        log_error(502, "Неверная контрольная сумма в ответе")
+                    except MessageRegisterException:
+                        log_error(502, "Неверный адрес регистра")
+                    client.close()
+                except ConnectionException:
+                    log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                except Exception as e:
+                    log_error(502, f"Ошибка Modbus: {str(e)}")
+                    break
+            log_error(500, "Не удалось получить данные после всех попыток")
+        else:
+            log_error(404, message="Нет устройства {} в {}".format(device, lab_num))
+
 
 api.add_resource(Lab13API, '/lab13/<string:device>/<string:function>')
 
 
 # Функция удаления логов по прошествии n дней
 def delete_logs():
-    log_file = "modbusRESTAPI/lab13/lab13.log"
+    log_file = "lab13.log"
     log_dir = os.path.dirname(log_file)
     for file in os.listdir(log_dir):
         file_path = os.path.join(log_dir, file)

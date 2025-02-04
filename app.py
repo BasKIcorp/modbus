@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.register_blueprint(lab_13)
 app.register_blueprint(lab_14)
 app.register_blueprint(poll_params)
-with open('modbusRESTAPI/config.json') as f:
+with open('config.json') as f:
     d = json.load(f)
 
 if __name__ == "__main__":

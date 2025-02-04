@@ -7,7 +7,7 @@ from lab14.lab14 import delete_logs as delete_logs_lab14
 from poll_params import scheduled_task, delete_logs as delete_logs_poll
 
 # Подгружаем настройки из файла
-with open('modbusRESTAPI/config.json') as f:
+with open('config.json') as f:
     d = json.load(f)
 
 # Запускаем планировщик

@@ -3,7 +3,7 @@ import asyncio
 from poll_params import _read_params
 
 
-def test_poll_params():
+async def test_poll_params():
     try:
         data = await _read_params()
         if data is not None:

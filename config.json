@@ -22,7 +22,8 @@
     "trm210": {
       "slave_id": 8,
       "first_register": 4105,
-      "second_register": 4107
+      "second_register": 4107,
+      "write_register": 2
     },
     "trm200": {
       "slave_id": 10,

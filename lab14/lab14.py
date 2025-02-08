@@ -127,7 +127,6 @@ class Lab14API(Resource):
             start_address = None
             if device == "trm210" and function == "set_voltage":    # проверяем наличие функции
                 start_address = d[lab_num][device]["write_register"]
-                value = value // 100    # преобразовываем в формат, нужный для устройства
             else:
                 log_error(404, message="Нет функции {}".format(function))
 

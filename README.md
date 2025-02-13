@@ -12,6 +12,9 @@
 #### ТРМ202
 - Чтение разницы давлений - GET /lab13/trm202/get_pressure
 - Чтение температуры - GET /lab13/trm202/get_temp
+- Запуск насоса - POST /lab13/trm202/set_valve?value=on
+- Отключение насоса - POST /lab13/trm202/set_valve?value=off
+- Клапан - POST /lab13/trm202/set_valve?value=release
   
 ### Лабораторная работа 14
 #### ТРМ210

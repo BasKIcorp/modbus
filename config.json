@@ -11,7 +11,9 @@
     "trm202": {
       "slave_id": 10,
       "first_register": 4105,
-      "second_register": 4107
+      "second_register": 4107,
+      "pump_register": 9,
+      "valve_register": 10
     },
     "sensor": {
       "slave_id": 1,

@@ -143,7 +143,7 @@ class Lab13API(Resource):
             await client.connect()
             try:
                 if value == "on" or value == "off":  # функция on и off
-                    value = 0   # для функции on так же ставим сначала значение 0
+                    value = 1000 if value == "on" else 0
                     data = await client.write_registers(address=start_address, values=[value],
                                                         slave=slave_id)  # запись данных
                     if not data.isError():
@@ -151,16 +151,6 @@ class Lab13API(Resource):
                         return {'Значение записано': True}
                     else:
                         log_error(502, "Ошибка: {}".format(data))
-
-                    if value == "on":
-                        value = 1000    # для функции on
-                        data = await client.write_registers(address=start_address, values=[value],
-                                                            slave=slave_id)  # запись данных
-                        if not data.isError():
-                            lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                            return {'Значение записано': True}
-                        else:
-                            log_error(502, "Ошибка: {}".format(data))
                 else:  # функция release
                     value = 1000
                     data = await client.write_registers(address=start_address, values=[value],

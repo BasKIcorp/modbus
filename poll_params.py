@@ -114,7 +114,8 @@ async def _read_params():
                         if device == "sensor":
                             data = await client.read_input_registers(address=start_address, count=count, slave=slave_id)
                         else:
-                            data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
+                            data = await client.read_holding_registers(address=start_address, count=count,
+                                                                       slave=slave_id)
                         if not data.isError():
                             if device == "sensor":
                                 value = data.registers[0]
@@ -126,6 +127,11 @@ async def _read_params():
                                 f"регистр {start_address}, прочитано значение {value}")
                             temp_data = (param_name, value)  # собираем полученные данные в один кортеж
                             answer.append(temp_data)
+                            if param_name == "DP":
+                                if value > 2500:  # проверяем давление, если больше 2500 - выключаем насос
+                                    data = await client.write_registers(address=d["lab13"]["trm202"]["pump_register"],
+                                                                        values=[0],
+                                                                        slave=d["lab13"]["trm202"]["slave_id"])
                         else:
                             log_error(502, "Ошибка: {}".format(data))
                     except ConnectionException:

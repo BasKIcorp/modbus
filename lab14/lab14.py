@@ -54,12 +54,13 @@ class Lab14API(Resource):
         host = d["server_host"]
         port = d["server_port"]
         start_address = None
-        count = 2
-        if (device == "trm200" and function == "get_temp_1") or \
-                (device == "trm210" and function == "get_pressure"):    # первый регистр, проверяем наличие функций
-            start_address = 4105
+        count = 1
+        if (device == "trm200" and function == "get_temp_1"):    # первый регистр, проверяем наличие функций
+            start_address = d["lab14"]["trm200"]["first_register"]
         elif device == "trm200" and function == "get_temp_2":   # второй регистр, проверяем наличие функций
-            start_address = 4107
+            start_address = d["lab14"]["trm200"]["second_register"]
+        elif device == "sensor" and function == "get_pressure":
+            start_address = d["lab14"]["sensor"]["first_register"]
         else:
             log_error(404, message="Нет функции {}".format(function))
 
@@ -72,15 +73,26 @@ class Lab14API(Resource):
                 client = AsyncModbusTcpClient(host, port=port)
                 await client.connect()
                 try:
-                    data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
-                    if not data.isError():
-                        value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)    # переводим в читаемый вид
-                        lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
-                        result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
-                        reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
-                        return {'Полученные значения': [marshal(reg, reg_fields) for reg in result]}    # отправляем на сервис ответ
-                    else:
-                        log_error(502, "Ошибка: {}".format(data))
+                    if device == "trm200":
+                        data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
+                        if not data.isError():
+                            value_float32 = data.register[0] / 10   # переводим в читаемый вид
+                            lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
+                            result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
+                            reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
+                            return {'Полученные значения': [marshal(reg, reg_fields) for reg in result]}    # отправляем на сервис ответ
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                    elif device == "sensor":
+                        data = await client.read_input_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
+                        if not data.isError():
+                            value_float32 = data.register[0]
+                            lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
+                            result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
+                            reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
+                            return {'Полученные значения': [marshal(reg, reg_fields) for reg in result]}    # отправляем на сервис ответ
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
                 except ConnectionException:
                     log_error(502, "Нет соединения с устройством")
                 except ModbusIOException:

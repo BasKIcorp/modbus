@@ -63,20 +63,31 @@ init_db()
 def save_to_db(param_name, value):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO static_params (param_name, type, value, equipment_id) VALUES (?, 1, ?, 1)",
-                   (param_name, value))
+
+    # Проверяем, существует ли запись
+    cursor.execute("""SELECT COUNT(*) FROM static_params WHERE param_name = ?""", (param_name, ))
+    exists = cursor.fetchone()[0] > 0
+
+    if exists:
+        # Обновляем существующую запись
+        cursor.execute("""UPDATE static_params SET value = ? WHERE param_name = ?""", (value, param_name))
+    else:
+        lab = 14
+        if param_name == "T" or param_name == "P":
+            lab = 13
+        # Создаем новую запись
+        cursor.execute("""INSERT INTO static_params (param_name, type, value, equipment_id) VALUES (?, 1, ?, ?)""", (param_name, value, lab))
+
     conn.commit()
     conn.close()
 
 
 # Хранение информации о данных для считывания
-params_to_read = {"trm202": ["lab13", ["DP", d["lab13"]["trm202"]["first_register"]],
-                             ["T", d["lab13"]["trm202"]["second_register"]]],
-                  "sensor": ["lab13", ["P", d["lab13"]["sensor"]["first_register"]]],
+params_to_read = {"trm202": ["lab13", ["T", d["lab13"]["trm202"]["first_register"]]],
+                  "pressure_sensor": ["lab13", ["P", d["lab13"]["pressure_sensor"]["first_register"]]],
                   "trm200": ["lab14", ["T1", d["lab14"]["trm200"]["first_register"]],
                              ["T2", d["lab14"]["trm200"]["second_register"]]],
-                  "trm210": ["lab14", ["DPy", d["lab14"]["trm210"]["first_register"]],
-                             ["Tn", d["lab14"]["trm210"]["second_register"]]]}
+                  "sensor": ["lab14", ["DP", d["lab14"]["sensor"]["first_register"]]]}
 
 
 async def _read_params():
@@ -106,7 +117,7 @@ async def _read_params():
                     start_address = start_addresses[i][j]
                     device = devices[i]
                     slave_id = slave_ids[i]
-                    if device == "sensor":
+                    if device == "sensor" or device == "trm200":
                         count = 1
                     else:
                         count = 2
@@ -117,21 +128,36 @@ async def _read_params():
                             data = await client.read_holding_registers(address=start_address, count=count,
                                                                        slave=slave_id)
                         if not data.isError():
-                            if device == "sensor":
+                            if device == "trm202" or device == "trm200":
+                                value = data.registers[0] / 10
+                            elif device == "sensor":
                                 value = data.registers[0]
                             else:
                                 value = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
+                                value = round(value, 1)
                             param_name = params_to_read.get(device)[j + 1][0]
                             poll_logger.info(
                                 f"Получение параметров, прибор {device}, параметр {param_name}, "
                                 f"регистр {start_address}, прочитано значение {value}")
                             temp_data = (param_name, value)  # собираем полученные данные в один кортеж
                             answer.append(temp_data)
-                            if param_name == "DP":
-                                if value > 2500:  # проверяем давление, если больше 2500 - выключаем насос
-                                    data = await client.write_registers(address=d["lab13"]["trm202"]["pump_register"],
+                            if param_name == "P":
+                                if value > 2000:  # проверяем давление, если больше 2000 - выключаем насос
+                                    print("насос выключить!")
+                                    data = await client.write_registers(address=8, values=[1],
+                                                                        slave=16)  # запись данных
+                                    data = await client.write_registers(address=10, values=[0],
+                                                                        slave=16)  # запись данных
+                                    await asyncio.sleep(1)
+                                    data = await client.write_registers(address=10, values=[1000],
+                                                                        slave=16)
+                                    data = await client.write_registers(address=9,
                                                                         values=[0],
-                                                                        slave=d["lab13"]["trm202"]["slave_id"])
+                                                                        slave=16)
+                                    if not data.isError():
+                                        print("насос экстренно вырублен")
+                                    else:
+                                        print("ошибка выключения насоса")
                         else:
                             log_error(502, "Ошибка: {}".format(data))
                     except ConnectionException:

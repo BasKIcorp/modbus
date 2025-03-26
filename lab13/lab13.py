@@ -40,7 +40,7 @@ def log_error(code, message):
 
 class Lab13API(Resource):
     def get(self, device, function):
-        if device == "trm202" or "sensor":  # устройство лабы "Опытное определение показателя адиабаты воздуха"
+        if device == "trm202" or "pressure_sensor":  # устройство лабы "Опытное определение показателя адиабаты воздуха"
             try:
                 data = asyncio.run(self._read_device_data(device, function))
                 return data
@@ -54,15 +54,13 @@ class Lab13API(Resource):
         host = d["server_host"]
         port = d["server_port"]
         start_address = None
-        if device == "sensor":
-            count = 1
-            start_address = 1
-        else:
+        if device == "pressure_sensor":   
             count = 2
+            start_address = d["lab13"]["pressure_sensor"]["first_register"]
+        else:
             if function == "get_temp":  # по ручке получаем регистр
-                start_address = 4105
-            elif function == "get_pressure":
-                start_address = 4107
+                count = 1
+                start_address = d["lab13"]["trm202"]["first_register"]
             else:
                 log_error(404, f"Нет функции {function}")
 
@@ -77,7 +75,11 @@ class Lab13API(Resource):
                 try:
                     data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
                     if not data.isError():
-                        value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
+                        print(data.registers)
+                        if device == "pressure_sensor":
+                            value_float32 = client.convert_from_registers(data.registers, data_type=client.DATATYPE.FLOAT32)
+                        else:
+                            value_float32 = data.registers[0] / 10
                         lab13_logger.info(
                             f"Лаб13, прибор {device}, функция {function}, прочитано значение {value_float32}")
                         result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
@@ -144,29 +146,36 @@ class Lab13API(Resource):
             try:
                 if value == "on" or value == "off":  # функция on и off
                     value = 1000 if value == "on" else 0
+                    data = await client.write_registers(address=7, values=[1],
+                                                        slave=slave_id)  # запись данных
+                    if not data.isError():
+                        lab13_logger.info(f"Лаб13, внешнее управление насоса включено")
                     data = await client.write_registers(address=start_address, values=[value],
                                                         slave=slave_id)  # запись данных
                     if not data.isError():
                         lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                        return {'Значение записано': True}
+                        return {'Функция сработала': True}
                     else:
                         log_error(502, "Ошибка: {}".format(data))
                 else:  # функция release
+                    value = 0
+                    data = await client.write_registers(address=8, values=[1],
+                                                        slave=slave_id)  # запись данных
+                    if not data.isError():
+                        lab13_logger.info(f"Лаб13, внешнее управление клапана включено")
+                    data = await client.write_registers(address=start_address, values=[value],
+                                                        slave=slave_id)  # запись данных
+                    if not data.isError():
+                        lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
+                    else:
+                        log_error(502, "Ошибка: {}".format(data))
+                    await asyncio.sleep(1)
                     value = 1000
                     data = await client.write_registers(address=start_address, values=[value],
                                                         slave=slave_id)  # запись данных
                     if not data.isError():
                         lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                        return {'Значение записано': True}
-                    else:
-                        log_error(502, "Ошибка: {}".format(data))
-                    sleep(3)
-                    value = 0
-                    data = await client.write_registers(address=start_address, values=[value],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                        return {'Значение записано': True}
+                        return {'Функция release сработала': True}
                     else:
                         log_error(502, "Ошибка: {}".format(data))
             except ConnectionException:

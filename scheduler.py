@@ -11,7 +11,7 @@ with open('config.json') as f:
     d = json.load(f)
 
 # Запускаем планировщик
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 2})
 
 scheduler.add_job(delete_logs_lab13, 'interval', days=d["delete_logs_days"])
 scheduler.add_job(delete_logs_lab14, 'interval', days=d["delete_logs_days"])

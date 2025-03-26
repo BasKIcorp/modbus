@@ -1,36 +1,37 @@
 {
   "port": 3000,
-  "poll_time_minutes": 1,
-  "poll_time_seconds": 0,
+  "poll_time_minutes": 0,
+  "poll_time_seconds": 3,
   "delete_logs_days": 1,
   "server_host": "10.2.147.7",
   "server_port": 502,
   "max_retries": 3,
   "delay_seconds": 2,
   "lab13": {
+    "pressure_sensor": {
+      "slave_id": 32,
+      "first_register": 19
+    },
     "trm202": {
-      "slave_id": 10,
-      "first_register": 4105,
-      "second_register": 4107,
+      "slave_id": 16,
+      "first_register": 2,
       "pump_register": 9,
       "valve_register": 10
-    },
-    "sensor": {
-      "slave_id": 1,
-      "first_register": 4105
     }
   },
   "lab14": {
     "trm210": {
       "slave_id": 8,
-      "first_register": 4105,
-      "second_register": 4107,
-      "write_register": 2
+      "write_register": 6
     },
     "trm200": {
       "slave_id": 10,
-      "first_register": 4105,
-      "second_register": 4107
+      "first_register": 1,
+      "second_register": 2
+    },
+    "sensor": {
+      "slave_id": 1,
+      "first_register": 1
     }
   }
 }

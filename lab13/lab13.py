@@ -41,7 +41,7 @@ def log_error(code, message):
 
 class Lab13API(Resource):
     def get(self, device, function):
-        if device == "trm202" or "pressure_sensor":  # устройство лабы "Опытное определение показателя адиабаты воздуха"
+        if device == "trm202" or device == "pressure_sensor":  # устройство лабы "Опытное определение показателя адиабаты воздуха"
             try:
                 data = asyncio.run(self._read_device_data(device, function))
                 return data

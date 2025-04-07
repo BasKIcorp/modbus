@@ -54,6 +54,7 @@ class Lab13API(Resource):
         slave_id = d[lab_num][device]["slave_id"]
         host = d["server_host"]
         port = d["server_port"]
+        connection_timeout = d["connection_timeout"]
         start_address = None
         count = None
         if device == "pressure_sensor":   
@@ -69,7 +70,7 @@ class Lab13API(Resource):
         async with device_locks[device]:
             try:
                 client = AsyncModbusTcpClient(host, port=port)
-                await client.connect()
+                await asyncio.wait_for(client.connect(), timeout=connection_timeout)
                 try:
                     data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)
                     if not data.isError():
@@ -123,6 +124,7 @@ class Lab13API(Resource):
             value = query["value"]
             host = d["server_host"]
             port = d["server_port"]
+            connection_timeout = d["connection_timeout"]
             start_address = None
             if device == "trm202" and function == "set_valve":  # проверяем наличие функции
                 if value == "on" or value == "off":
@@ -135,7 +137,7 @@ class Lab13API(Resource):
                 log_error(404, message="Нет функции {}".format(function))
             async with device_locks[device]:
                 client = AsyncModbusTcpClient(host, port=port)
-                await client.connect()
+                await asyncio.wait_for(client.connect(), timeout=connection_timeout)
                 try:
                     if value == "on" or value == "off":  # функция on и off
                         value = 1000 if value == "on" else 0

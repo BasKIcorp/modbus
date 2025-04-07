@@ -42,7 +42,7 @@ def log_error(code, message):
 
 class Lab14API(Resource):
     def get(self, device, function):
-        if device in ["trm200", "trm210"]:  # устройства лабы "Закон Шарля"
+        if device in ["trm200", "trm210", "sensor"]:  # устройства лабы "Закон Шарля"
             try:
                 data = asyncio.run(self._read_device_data(device, function))
                 return data
@@ -55,6 +55,7 @@ class Lab14API(Resource):
         slave_id = d[lab_num][device]["slave_id"]
         host = d["server_host"]
         port = d["server_port"]
+        connection_timeout = d["connection_timeout"]
         start_address = None
         count = 1
         if device == "trm200" and function == "get_temp_1":    # первый регистр, проверяем наличие функций
@@ -68,12 +69,12 @@ class Lab14API(Resource):
         async with device_locks[device]:
             try:
                 client = AsyncModbusTcpClient(host, port=port)
-                await client.connect()
+                await asyncio.wait_for(client.connect(), timeout=connection_timeout)
                 try:
                     if device == "trm200":
                         data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
                         if not data.isError():
-                            value_float32 = data.register[0] / 10   # переводим в читаемый вид
+                            value_float32 = data.registers[0] / 10   # переводим в читаемый вид
                             lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
                             result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
                             reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
@@ -83,7 +84,7 @@ class Lab14API(Resource):
                     elif device == "sensor":
                         data = await client.read_input_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
                         if not data.isError():
-                            value_float32 = data.register[0]
+                            value_float32 = data.registers[0]
                             lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, прочитано значение {value_float32}")
                             result = [{'Прибор': device, 'Функция': function, 'Значение': value_float32}]
                             reg_fields = {'Прибор': fields.String, 'Функция': fields.String, 'Значение': fields.Float}
@@ -128,6 +129,7 @@ class Lab14API(Resource):
             value = query["value"]
             host = d["server_host"]
             port = d["server_port"]
+            connection_timeout = d["connection_timeout"]
             start_address = None
             if device == "trm210" and function == "set_voltage":    # проверяем наличие функции
                 start_address = d[lab_num][device]["write_register"]
@@ -135,7 +137,7 @@ class Lab14API(Resource):
                 log_error(404, message="Нет функции {}".format(function))
             async with device_locks[device]:
                 client = AsyncModbusTcpClient(host, port=port)
-                await client.connect()
+                await asyncio.wait_for(client.connect(), timeout=connection_timeout)
                 try:
                     data = await client.write_registers(address=start_address, values=[value], slave=slave_id)  # запись данных
                     if not data.isError():

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from locks import device_locks
 from time import sleep
 from logging.handlers import RotatingFileHandler
 import asyncio
@@ -54,6 +55,7 @@ class Lab13API(Resource):
         host = d["server_host"]
         port = d["server_port"]
         start_address = None
+        count = None
         if device == "pressure_sensor":   
             count = 2
             start_address = d["lab13"]["pressure_sensor"]["first_register"]
@@ -64,11 +66,7 @@ class Lab13API(Resource):
             else:
                 log_error(404, f"Нет функции {function}")
 
-        # Количество попыток и задержка между ними
-        max_retries = d["max_retries"]
-        retry_delay = d["delay_seconds"]  # в секундах
-
-        for attempt in range(max_retries):
+        async with device_locks[device]:
             try:
                 client = AsyncModbusTcpClient(host, port=port)
                 await client.connect()
@@ -102,14 +100,9 @@ class Lab13API(Resource):
                 except MessageRegisterException:
                     log_error(502, "Неверный адрес регистра")
                 client.close()
-            except ConnectionException:
-                log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
             except Exception as e:
                 log_error(502, f"Ошибка Modbus: {str(e)}")
-                break
-        log_error(500, "Не удалось получить данные после всех попыток")
+        log_error(500, "Не удалось получить данные")
 
     def post(self, device, function):
         if device == "trm202":  # запись только для устройства trm202
@@ -140,59 +133,59 @@ class Lab13API(Resource):
                     log_error(404, message="Неверное значение")
             else:
                 log_error(404, message="Нет функции {}".format(function))
-
-            client = AsyncModbusTcpClient(host, port=port)
-            await client.connect()
-            try:
-                if value == "on" or value == "off":  # функция on и off
-                    value = 1000 if value == "on" else 0
-                    data = await client.write_registers(address=7, values=[1],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, внешнее управление насоса включено")
-                    data = await client.write_registers(address=start_address, values=[value],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                        return {'Функция сработала': True}
-                    else:
-                        log_error(502, "Ошибка: {}".format(data))
-                else:  # функция release
-                    value = 0
-                    data = await client.write_registers(address=8, values=[1],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, внешнее управление клапана включено")
-                    data = await client.write_registers(address=start_address, values=[value],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                    else:
-                        log_error(502, "Ошибка: {}".format(data))
-                    await asyncio.sleep(1)
-                    value = 1000
-                    data = await client.write_registers(address=start_address, values=[value],
-                                                        slave=slave_id)  # запись данных
-                    if not data.isError():
-                        lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
-                        return {'Функция release сработала': True}
-                    else:
-                        log_error(502, "Ошибка: {}".format(data))
-            except ConnectionException:
-                log_error(502, "Нет соединения с устройством")
-            except ModbusIOException:
-                log_error(502, "Нет ответа от устройства")
-            except ParameterException:
-                log_error(502, "Неверные параметры соединения")
-            except NoSuchSlaveException:
-                log_error(502, "Нет устройства с id {}".format(slave_id))
-            except NotImplementedException:
-                log_error(502, "Нет данной функции")
-            except InvalidMessageReceivedException:
-                log_error(502, "Неверная контрольная сумма в ответе")
-            except MessageRegisterException:
-                log_error(502, "Неверный адрес регистра")
-            client.close()
+            async with device_locks[device]:
+                client = AsyncModbusTcpClient(host, port=port)
+                await client.connect()
+                try:
+                    if value == "on" or value == "off":  # функция on и off
+                        value = 1000 if value == "on" else 0
+                        data = await client.write_registers(address=7, values=[1],
+                                                            slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, внешнее управление насоса включено")
+                        data = await client.write_registers(address=start_address, values=[value],
+                                                            slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
+                            return {'Функция сработала': True}
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                    else:  # функция release
+                        value = 0
+                        data = await client.write_registers(address=8, values=[1],
+                                                            slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, внешнее управление клапана включено")
+                        data = await client.write_registers(address=start_address, values=[value],
+                                                            slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                        await asyncio.sleep(1)
+                        value = 1000
+                        data = await client.write_registers(address=start_address, values=[value],
+                                                            slave=slave_id)  # запись данных
+                        if not data.isError():
+                            lab13_logger.info(f"Лаб13, прибор {device}, функция {function}, значение {value} записано")
+                            return {'Функция release сработала': True}
+                        else:
+                            log_error(502, "Ошибка: {}".format(data))
+                except ConnectionException:
+                    log_error(502, "Нет соединения с устройством")
+                except ModbusIOException:
+                    log_error(502, "Нет ответа от устройства")
+                except ParameterException:
+                    log_error(502, "Неверные параметры соединения")
+                except NoSuchSlaveException:
+                    log_error(502, "Нет устройства с id {}".format(slave_id))
+                except NotImplementedException:
+                    log_error(502, "Нет данной функции")
+                except InvalidMessageReceivedException:
+                    log_error(502, "Неверная контрольная сумма в ответе")
+                except MessageRegisterException:
+                    log_error(502, "Неверный адрес регистра")
+                client.close()
 
 
 api.add_resource(Lab13API, '/lab13/<string:device>/<string:function>')

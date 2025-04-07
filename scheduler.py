@@ -1,7 +1,5 @@
-import asyncio
 import json
-
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from lab13.lab13 import delete_logs as delete_logs_lab13
 from lab14.lab14 import delete_logs as delete_logs_lab14
 from poll_params import scheduled_task, delete_logs as delete_logs_poll
@@ -10,11 +8,10 @@ from poll_params import scheduled_task, delete_logs as delete_logs_poll
 with open('config.json') as f:
     d = json.load(f)
 
-# Запускаем планировщик
-scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 2})
 
-scheduler.add_job(delete_logs_lab13, 'interval', days=d["delete_logs_days"])
-scheduler.add_job(delete_logs_lab14, 'interval', days=d["delete_logs_days"])
-scheduler.add_job(lambda: asyncio.run(scheduled_task()), 'interval', minutes=d["poll_time_minutes"], seconds=d["poll_time_seconds"])
-scheduler.add_job(delete_logs_poll, 'interval', days=d["delete_logs_days"])
-scheduler.start()
+# Функция для настройки планировщика
+def configure_scheduler(scheduler):
+    scheduler.add_job(delete_logs_lab13, 'interval', days=d["delete_logs_days"])
+    scheduler.add_job(delete_logs_lab14, 'interval', days=d["delete_logs_days"])
+    scheduler.add_job(scheduled_task, 'interval', minutes=d["poll_time_minutes"], seconds=d["poll_time_seconds"])
+    scheduler.add_job(delete_logs_poll, 'interval', days=d["delete_logs_days"])

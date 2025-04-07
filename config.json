@@ -1,12 +1,12 @@
 {
-  "port": 3000,
+  "port": 3001,
   "poll_time_minutes": 0,
-  "poll_time_seconds": 3,
+  "poll_time_seconds": 1,
   "delete_logs_days": 1,
   "server_host": "10.2.147.7",
   "server_port": 502,
-  "max_retries": 3,
-  "delay_seconds": 2,
+  "max_retries": 0,
+  "delay_seconds": 1,
   "lab13": {
     "pressure_sensor": {
       "slave_id": 32,

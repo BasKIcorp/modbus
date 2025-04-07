@@ -9,6 +9,8 @@ from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException, ParameterException, NoSuchSlaveException, \
     NotImplementedException, InvalidMessageReceivedException, MessageRegisterException
 
+from locks import device_locks
+
 lab_num = "lab14"
 
 lab_14 = Blueprint('lab14', __name__)
@@ -55,7 +57,7 @@ class Lab14API(Resource):
         port = d["server_port"]
         start_address = None
         count = 1
-        if (device == "trm200" and function == "get_temp_1"):    # первый регистр, проверяем наличие функций
+        if device == "trm200" and function == "get_temp_1":    # первый регистр, проверяем наличие функций
             start_address = d["lab14"]["trm200"]["first_register"]
         elif device == "trm200" and function == "get_temp_2":   # второй регистр, проверяем наличие функций
             start_address = d["lab14"]["trm200"]["second_register"]
@@ -63,12 +65,7 @@ class Lab14API(Resource):
             start_address = d["lab14"]["sensor"]["first_register"]
         else:
             log_error(404, message="Нет функции {}".format(function))
-
-        # Количество попыток и задержка между ними
-        max_retries = d["max_retries"]
-        retry_delay = d["delay_seconds"]  # в секундах
-
-        for attempt in range(max_retries):
+        async with device_locks[device]:
             try:
                 client = AsyncModbusTcpClient(host, port=port)
                 await client.connect()
@@ -108,14 +105,9 @@ class Lab14API(Resource):
                 except MessageRegisterException:
                     log_error(502, "Неверный адрес регистра")
                 client.close()
-            except ConnectionException:
-                log_error(502, f"Ошибка подключения Modbus. Попытка {attempt + 1} из {max_retries}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
             except Exception as e:
                 log_error(502, f"Ошибка Modbus: {str(e)}")
-                break
-        log_error(500, "Не удалось получить данные после всех попыток")
+            log_error(500, "Не удалось получить данные")
 
     def post(self, device, function):
         if device == "trm210":  # запись только для устройства trm210
@@ -141,31 +133,31 @@ class Lab14API(Resource):
                 start_address = d[lab_num][device]["write_register"]
             else:
                 log_error(404, message="Нет функции {}".format(function))
-
-            client = AsyncModbusTcpClient(host, port=port)
-            await client.connect()
-            try:
-                data = await client.write_registers(address=start_address, values=[value], slave=slave_id)  # запись данных
-                if not data.isError():
-                    lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, значение {value} записано")
-                    return {'Значение записано': True}
-                else:
-                    log_error(502, "Ошибка: {}".format(data))
-            except ConnectionException:
-                log_error(502, "Нет соединения с устройством")
-            except ModbusIOException:
-                log_error(502, "Нет ответа от устройства")
-            except ParameterException:
-                log_error(502, "Неверные параметры соединения")
-            except NoSuchSlaveException:
-                log_error(502, "Нет устройства с id {}".format(slave_id))
-            except NotImplementedException:
-                log_error(502, "Нет данной функции")
-            except InvalidMessageReceivedException:
-                log_error(502, "Неверная контрольная сумма в ответе")
-            except MessageRegisterException:
-                log_error(502, "Неверный адрес регистра")
-            client.close()
+            async with device_locks[device]:
+                client = AsyncModbusTcpClient(host, port=port)
+                await client.connect()
+                try:
+                    data = await client.write_registers(address=start_address, values=[value], slave=slave_id)  # запись данных
+                    if not data.isError():
+                        lab14_logger.info(f"Лаб14, прибор {device}, функция {function}, значение {value} записано")
+                        return {'Значение записано': True}
+                    else:
+                        log_error(502, "Ошибка: {}".format(data))
+                except ConnectionException:
+                    log_error(502, "Нет соединения с устройством")
+                except ModbusIOException:
+                    log_error(502, "Нет ответа от устройства")
+                except ParameterException:
+                    log_error(502, "Неверные параметры соединения")
+                except NoSuchSlaveException:
+                    log_error(502, "Нет устройства с id {}".format(slave_id))
+                except NotImplementedException:
+                    log_error(502, "Нет данной функции")
+                except InvalidMessageReceivedException:
+                    log_error(502, "Неверная контрольная сумма в ответе")
+                except MessageRegisterException:
+                    log_error(502, "Неверный адрес регистра")
+                client.close()
 
 
 api.add_resource(Lab14API, '/lab14/<string:device>/<string:function>')

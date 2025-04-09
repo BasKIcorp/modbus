@@ -23,7 +23,8 @@
   "lab14": {
     "trm210": {
       "slave_id": 8,
-      "write_register": 6
+      "write_register": 6,
+      "first_register": 1
     },
     "trm200": {
       "slave_id": 10,

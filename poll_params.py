@@ -109,7 +109,8 @@ params_to_read = {
     "pressure_sensor": ["lab13", ["P", d["lab13"]["pressure_sensor"]["first_register"]]],
     "trm200": ["lab14", ["T1", d["lab14"]["trm200"]["first_register"]],
                ["T2", d["lab14"]["trm200"]["second_register"]]],
-    "sensor": ["lab14", ["DP", d["lab14"]["sensor"]["first_register"]]]
+    "sensor": ["lab14", ["DP", d["lab14"]["sensor"]["first_register"]]],
+    "trm210": ["lab14", ["p", d["lab14"]["trm210"]["first_register"]]]
 }
 
 # Глобальное состояние доступности устройств
@@ -117,7 +118,8 @@ device_status = {
     "trm202": False,
     "pressure_sensor": False,
     "trm200": False,
-    "sensor": False
+    "sensor": False,
+    "trm210": False
 }
 
 
@@ -134,7 +136,6 @@ async def _read_params():
         lab_num = params_to_read.get(device)[0]
         slave_id = d[lab_num][device]["slave_id"]
         start_addresses = [params_to_read.get(device)[i][1] for i in range(1, len(params_to_read.get(device)))]
-
         client = None
         device_success = False
         async with device_locks[device]:
@@ -163,7 +164,7 @@ async def _read_params():
                             )
 
                         if not data.isError():
-                            if device == "trm202" or device == "trm200":
+                            if device == "trm202" or device == "trm200" or device == "trm210":
                                 value = data.registers[0] / 10
                             elif device == "sensor":
                                 value = data.registers[0]

@@ -62,8 +62,10 @@ class Lab14API(Resource):
             start_address = d["lab14"]["trm200"]["first_register"]
         elif device == "trm200" and function == "get_temp_2":   # второй регистр, проверяем наличие функций
             start_address = d["lab14"]["trm200"]["second_register"]
-        elif device == "sensor" and function == "get_pressure":
+        elif device == "sensor" and function == "get_deltap":
             start_address = d["lab14"]["sensor"]["first_register"]
+        elif device == "trm210" and function == "get_pressure":
+            start_address = d["lab14"]["trm210"]["first_register"]
         else:
             log_error(404, message="Нет функции {}".format(function))
         async with device_locks[device]:
@@ -71,7 +73,7 @@ class Lab14API(Resource):
                 client = AsyncModbusTcpClient(host, port=port)
                 await asyncio.wait_for(client.connect(), timeout=connection_timeout)
                 try:
-                    if device == "trm200":
+                    if device == "trm200" or device == "trm210":
                         data = await client.read_holding_registers(address=start_address, count=count, slave=slave_id)  # считывание данных
                         if not data.isError():
                             value_float32 = data.registers[0] / 10   # переводим в читаемый вид

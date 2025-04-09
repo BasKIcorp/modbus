@@ -14,7 +14,7 @@
 - Запуск насоса - POST /lab13/trm202/set_valve?value=on
 - Отключение насоса - POST /lab13/trm202/set_valve?value=off
 - Клапан - POST /lab13/trm202/set_valve?value=release
-### Барометр
+#### Датчик давления
 - Чтение изменения давления - GET /lab13/pressure_sensor/get_pressure
   
 ### Лабораторная работа 14
